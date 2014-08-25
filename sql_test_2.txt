@@ -1,0 +1,101 @@
+create table usa_all (
+name varchar(20),
+sex char,
+frequency int,
+yob int
+);
+
+
+LOAD DATA INFILE 'C:/Users/econometrican/Desktop/names/usa_all.txt' INTO TABLE usa_all 
+FIELDS TERMINATED BY ',' 
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n';
+
+
+
+# gender ambiguity
+drop table if exists temp_m_2013, temp_f_2013, temp_m_f_2013;
+
+create table temp_m_2013 
+select name, sum(frequency) as freq_total_m from usa_all where sex = 'M' and yob = 2013 group by name having freq_total_m > 1000;
+create table temp_f_2013 
+select name, sum(frequency) as freq_total_f from usa_all where sex = 'F' and yob = 2013 group by name having freq_total_f > 1000;
+
+create table temp_m_f_2013 
+select p.name, freq_total_m, freq_total_f from
+temp_m_2013 p join temp_f_2013 q on p.name = q.name;
+
+select name, ABS(freq_total_m - freq_total_f)/(freq_total_m + freq_total_f) as ambiguity, freq_total_m, freq_total_f  from temp_m_f_2013 order by ambiguity limit 20;
+
+
+
+
+create table states_all (
+state varchar(10),
+sex char,
+yob int,
+name varchar(20),
+frequency int
+);
+
+
+LOAD DATA INFILE 'C:/Users/econometrican/Desktop/namesbystate/states_all.txt' INTO TABLE states_all 
+FIELDS TERMINATED BY ',' 
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n';
+
+# country level most popular names all the time
+select name, sum(frequency) as freq_total from states_all where sex = 'M' group by name order by freq_total desc limit 1;
+select name, sum(frequency) as freq_total from states_all where sex = 'F' group by name order by freq_total desc limit 1;
+# state level most popular names all the time
+create table states_allyear
+select state, name, sum(frequency) as freq_eachstate, sex from states_all group by state, name, sex;
+
+SELECT s1.state, s1.name, s1.freq_eachstate, s1.sex
+FROM states_allyear s1
+JOIN (
+SELECT state, sex, max(freq_eachstate) AS freqmax_f
+FROM states_allyear
+where sex = 'F'
+GROUP BY state) AS s2
+ON s1.state = s2.state AND s1.freq_eachstate = s2.freqmax_f and s1.sex = s2.sex;
+
+SELECT s1.state, s1.name, s1.freq_eachstate, s1.sex
+FROM states_allyear s1
+JOIN (
+SELECT state, sex, max(freq_eachstate) AS freqmax_m
+FROM states_allyear
+where sex = 'M'
+GROUP BY state) AS s2
+ON s1.state = s2.state AND s1.freq_eachstate = s2.freqmax_m and s1.sex = s2.sex;
+
+
+
+create table states_all_aggr
+select name, sum(frequency) as freq, yob  from states_all group by name, yob order by yob;
+
+create table freq_1980
+select name, freq from states_all_aggr where yob = 1980;
+create table freq_2013
+select name, freq from states_all_aggr where yob = 2013;
+create table freq_2013_1980
+select p.name, p.freq as freq_1980, q.freq as freq_2013, (q.freq - p.freq)/p.freq as change_portion
+from freq_1980 p join freq_2013 q on p.name = q.name; 
+
+
+
+select name, change_portion, freq_1980, freq_2013 from freq_2013_1980 
+where freq_1980 > 100 and freq_2013 > 100
+order by change_portion limit 2;
+select name, change_portion, freq_1980, freq_2013  from freq_2013_1980 
+where freq_1980 > 100 and freq_2013 > 100
+order by change_portion desc limit 2;
+
+
+select name, change_portion, freq_1980, freq_2013 from freq_2013_1980 
+where freq_1980 > 100 or freq_2013 > 100
+order by change_portion limit 2;
+select name, change_portion, freq_1980, freq_2013  from freq_2013_1980 
+where freq_1980 > 100 or freq_2013 > 100
+order by change_portion desc limit 2;
+
